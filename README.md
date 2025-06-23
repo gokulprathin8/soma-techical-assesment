@@ -99,4 +99,4 @@ Thanks for your time and effort. We'll be in touch soon!
 
 ### Demo
 
-![Image](screenshot.png)
+![Screenshot](https://github.com/gokulprathin8/soma-techical-assesment/raw/main/screenshot.png)
