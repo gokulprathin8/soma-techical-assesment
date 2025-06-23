@@ -54,3 +54,49 @@ Implement a task dependency system that allows tasks to depend on other tasks. T
 
 Thanks for your time and effort. We'll be in touch soon!
 # soma-techical-assesment
+
+## Solution
+
+### Features Implemented
+
+- **Due Dates:**
+  - Users can set a due date for each todo.
+  - Due dates are displayed in the list, and overdue dates are highlighted in red.
+
+- **Image Previews:**
+  - When a todo is created, a relevant image is fetched from the Pexels API using the task description.
+  - Images are displayed for each todo with a loading state while fetching.
+
+- **Task Dependencies:**
+  - Users can select multiple dependencies for each task.
+  - Circular dependencies (direct and indirect) are prevented.
+  - The critical path (longest dependency chain) is calculated and visualized.
+  - The earliest possible start date for each task is calculated and displayed.
+  - The dependency graph is visualized using Mermaid, with the critical path highlighted.
+
+### How to Run
+
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+2. **Set up your Pexels API key:**
+   - Create a `.env` file in the project root (if it doesn't exist).
+   - Add your API key:
+     ```
+     PEXELS_API_KEY=your_actual_pexels_api_key_here
+     ```
+3. **Run database migrations:**
+   ```bash
+   npx prisma migrate dev
+   ```
+4. **Start the development server:**
+   ```bash
+   npm run dev
+   ```
+5. **Open the app:**
+   - Visit [http://localhost:3000](http://localhost:3000) in your browser.
+
+### Demo
+
+![Image](screenshot.png)
