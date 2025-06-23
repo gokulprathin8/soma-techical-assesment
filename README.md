@@ -70,9 +70,9 @@ Thanks for your time and effort. We'll be in touch soon!
 - **Task Dependencies:**
   - Users can select multiple dependencies for each task.
   - Circular dependencies (direct and indirect) are prevented.
-  - The critical path (longest dependency chain) is calculated and visualized.
+  - The critical path (longest dependency chain) is calculated and visually highlighted.
   - The earliest possible start date for each task is calculated and displayed.
-  - The dependency graph is visualized using Mermaid, with the critical path highlighted.
+  - The dependency graph is visualized using **React Flow** with automatic layout (dagre), interactive controls, and robust error handling. The graph is visually integrated with the UI, and the critical path is clearly marked in red.
 
 ### How to Run
 

@@ -1,11 +1,10 @@
 "use client"
 import { Todo as PrismaTodo } from '@prisma/client';
 import { useState, useEffect } from 'react';
-import dynamic from 'next/dynamic';
+import DependencyGraph from './components/DependencyGraph';
+import dagre from 'dagre';
 
 type Todo = PrismaTodo & { imageUrl?: string | null, dependencies?: { id: number, title: string }[] };
-
-const Mermaid = dynamic(() => import('react-mermaid2').then(mod => mod.default), { ssr: false });
 
 function TodoImage({ src, alt }: { src: string, alt: string }) {
   const [loaded, setLoaded] = useState(false);
@@ -22,13 +21,41 @@ function TodoImage({ src, alt }: { src: string, alt: string }) {
   );
 }
 
+// Helper to escape Mermaid labels
+function escapeMermaidLabel(label: string) {
+  return label.replace(/(["<>\[\]\(\)])/g, '').replace(/\n/g, ' ');
+}
+
+// Layout helper for react-flow
+function getLayoutedElements(nodes: any[], edges: any[], direction = 'LR') {
+  const dagreGraph = new dagre.graphlib.Graph();
+  dagreGraph.setDefaultEdgeLabel(() => ({}));
+  const isHorizontal = direction === 'LR';
+  dagreGraph.setGraph({ rankdir: direction });
+  nodes.forEach((node) => {
+    dagreGraph.setNode(node.id, { width: 180, height: 60 });
+  });
+  edges.forEach((edge) => {
+    dagreGraph.setEdge(edge.source, edge.target);
+  });
+  dagre.layout(dagreGraph);
+  const layoutedNodes = nodes.map((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id);
+    node.position = {
+      x: nodeWithPosition.x - 90,
+      y: nodeWithPosition.y - 30,
+    };
+    return node;
+  });
+  return { nodes: layoutedNodes, edges };
+}
+
 export default function Home() {
   const [newTodo, setNewTodo] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [todos, setTodos] = useState<Todo[]>([]);
   const [selectedDeps, setSelectedDeps] = useState<number[]>([]);
   const [graphData, setGraphData] = useState<any>(null);
-  const [mermaidDef, setMermaidDef] = useState('');
 
   useEffect(() => {
     fetchTodos();
@@ -50,35 +77,57 @@ export default function Home() {
       const res = await fetch('/api/todos/critical-path');
       const data = await res.json();
       setGraphData(data);
-      setMermaidDef(makeMermaidDef(data));
     } catch (e) {
       setGraphData(null);
-      setMermaidDef('');
     }
   };
 
-  const makeMermaidDef = (data: any) => {
-    if (!data || !data.criticalPath) return '';
-    let def = 'graph TD\n';
-    const nodes = new Set();
-    todos.forEach(todo => {
-      if (todo.dependencies) {
-        todo.dependencies.forEach(dep => {
-          def += `  ${dep.id}([${dep.title}]) --> ${todo.id}([${todo.title}])\n`;
-          nodes.add(dep.id);
-          nodes.add(todo.id);
-        });
-      }
-    });
-    if (data.criticalPath && data.criticalPath.length > 1) {
-      for (let i = 0; i < data.criticalPath.length - 1; i++) {
-        const from = data.criticalPath[i].id;
-        const to = data.criticalPath[i + 1].id;
-        def += `  ${from} -.->|Critical| ${to}\n`;
-      }
+  // Prepare nodes
+  const nodes = todos.map(todo => ({
+    id: String(todo.id),
+    data: { label: todo.title },
+    position: { x: 0, y: 0 },
+    style: { background: '#f3f4f6', border: '2px solid #6366f1', borderRadius: 8, padding: 8 },
+  }));
+
+  // Prepare edges
+  let criticalPathPairs: string[][] = [];
+  if (graphData && graphData.criticalPath && graphData.criticalPath.length > 1) {
+    for (let i = 0; i < graphData.criticalPath.length - 1; i++) {
+      criticalPathPairs.push([
+        String(graphData.criticalPath[i].id),
+        String(graphData.criticalPath[i + 1].id),
+      ]);
     }
-    return def;
-  };
+  }
+
+  const edges: any[] = [];
+  todos.forEach(todo => {
+    if (todo.dependencies) {
+      todo.dependencies.forEach(dep => {
+        // Only add edge if both source and target exist
+        if (todos.find(t => t.id === dep.id)) {
+          const isCritical = criticalPathPairs.some(
+            ([from, to]) => from === String(dep.id) && to === String(todo.id)
+          );
+          edges.push({
+            id: `${dep.id}->${todo.id}`,
+            source: String(dep.id),
+            target: String(todo.id),
+            animated: isCritical,
+            style: isCritical
+              ? { stroke: '#f00', strokeWidth: 3 }
+              : { stroke: '#6366f1', strokeWidth: 2 },
+            label: isCritical ? 'Critical Path' : undefined,
+            labelStyle: isCritical ? { fill: '#f00', fontWeight: 700 } : undefined,
+          });
+        }
+      });
+    }
+  });
+
+  // Apply dagre layout
+  const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges, 'LR');
 
   const handleAddTodo = async () => {
     if (!newTodo.trim()) return;
@@ -116,6 +165,34 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-b from-orange-500 to-red-500 flex flex-col items-center p-4">
       <div className="w-full max-w-md">
         <h1 className="text-4xl font-bold text-center text-white mb-8">Things To Do App</h1>
+        {/* Dependency Graph Visualization - moved up */}
+        <div className="w-full max-w-2xl mb-10 bg-white bg-opacity-100 rounded-lg p-8 shadow mx-auto">
+          <h2 className="text-3xl font-extrabold mb-4 text-center text-gray-800">Dependency Graph</h2>
+          <div className="flex flex-col items-center">
+            <div className="w-full overflow-x-auto">
+              <DependencyGraph nodes={layoutedNodes} edges={layoutedEdges} />
+            </div>
+            <div className="flex gap-4 mt-4 text-base items-center">
+              <span className="inline-block w-8 h-2 bg-red-500 rounded mr-1" />
+              <span className="font-semibold text-gray-700">Critical Path</span>
+            </div>
+            {graphData && graphData.earliestStartDates && (
+              <div className="mt-6 w-full">
+                <h3 className="font-bold mb-2 text-lg text-gray-700">Earliest Start Dates:</h3>
+                <ul className="text-base text-gray-800">
+                  {Object.entries(graphData.earliestStartDates).map(([id, date]) => {
+                    const todo = todos.find(t => t.id === Number(id));
+                    return (
+                      <li key={id}>
+                        <span className="font-semibold">{todo ? todo.title : id}:</span> {new Date(date as string).toLocaleString()}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
         <div className="flex mb-6">
           <input
             type="text"
